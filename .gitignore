@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+dist/
+renderer/dist/
+dist-ssr/
+out/
+build/
+
+# Snapshots and generated captures
+proctor_snapshots/
+screen_snapshots/
+*.png
+
+# Dynamic data and state files
+backend/data.json
+backend/quit_strikes.json
+task.txt
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS metadata
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# IDE and Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

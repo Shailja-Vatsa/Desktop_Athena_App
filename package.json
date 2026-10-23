@@ -1,0 +1,23 @@
+{
+  "name": "ipc-lecture",
+  "version": "1.0.0",
+  "description": "Desktop Athena with Express & Electron Backend",
+  "main": "main.js",
+  "scripts": {
+    "dev": "npm run dev --prefix renderer",
+    "backend": "node backend/server.js",
+    "build": "npm run build --prefix renderer",
+    "start": "concurrently \"npm run dev --prefix renderer\" \"electron .\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

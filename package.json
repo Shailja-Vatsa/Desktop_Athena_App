@@ -1,5 +1,5 @@
 {
-  "name": "ipc-lecture",
+  "name": "desktop-athena",
   "version": "1.0.0",
   "description": "Desktop Athena with Express & Electron Backend",
   "main": "main.js",
@@ -7,17 +7,46 @@
     "dev": "npm run dev --prefix renderer",
     "backend": "node backend/server.js",
     "build": "npm run build --prefix renderer",
-    "start": "concurrently \"npm run dev --prefix renderer\" \"electron .\""
+    "start": "concurrently \"npm run dev --prefix renderer\" \"electron .\"",
+    "dist": "npm run build --prefix renderer && NODE_ENV=production electron-builder"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^10.0.5",
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1"
+  },
+  "build": {
+    "appId": "com.desktopathena.app",
+    "productName": "Desktop Athena",
+    "files": [
+      "main.js",
+      "preload.js",
+      "backend/**/*",
+      "renderer/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": ["**/*", "!data.json", "!quit_strikes.json"]
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

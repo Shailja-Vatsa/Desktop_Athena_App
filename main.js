@@ -247,15 +247,8 @@ ipcMain.handle("set-exam-active", async (event, flag) => {
   return isExamActive;
 });
 
-// IPC Handler: Confirm Quit
+// IPC Handler: Confirm Quit (one-way send from renderer via ipcRenderer.send)
 ipcMain.on("confirm-quit", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.destroy();
-  }
-  app.exit(0);
-});
-
-ipcMain.handle("confirm-quit", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.destroy();
   }

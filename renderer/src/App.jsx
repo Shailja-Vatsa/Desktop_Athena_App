@@ -75,10 +75,13 @@ function App() {
   const screenStreamRef = useRef(null);
   const screenIntervalRef = useRef(null);
   const hasSubmittedExamRef = useRef(false);
+  const selectedAnswersRef = useRef({});
+  const candidateNameRef = useRef("");
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(5400); // 90 minutes in seconds
+  const timerRef = useRef(null);
   const [screenSnapshots, setScreenSnapshots] = useState([]);
   const [ipcWarning, setIpcWarning] = useState("");
   const ipcWarningTimeoutRef = useRef(null);
@@ -138,20 +141,31 @@ function App() {
     }
   }, [activeScreen]);
 
-  // Results screen mount actions
+  // Results screen mount actions — set isManuallyExiting BEFORE exiting fullscreen
+  // to prevent the fullscreenchange listener from re-entering kiosk
   useEffect(() => {
     if (activeScreen === "results") {
-      if (window.electronAPI?.setFullscreen) {
-        window.electronAPI.setFullscreen(false);
-      }
-      if (window.electronAPI?.setKiosk) {
-        window.electronAPI.setKiosk(false);
-      }
+      isManuallyExitingRef.current = true;
+      if (navigator.keyboard?.unlock) navigator.keyboard.unlock();
+      if (window.electronAPI?.setKiosk) window.electronAPI.setKiosk(false);
+      if (window.electronAPI?.setFullscreen) window.electronAPI.setFullscreen(false);
       if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       }
-      if (window.electronAPI?.setExamActive) {
-        window.electronAPI.setExamActive(false);
+      if (window.electronAPI?.setExamActive) window.electronAPI.setExamActive(false);
+      // Stop audio visualizer
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      // Stop screen capture interval
+      if (screenIntervalRef.current) {
+        clearInterval(screenIntervalRef.current);
+        screenIntervalRef.current = null;
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
       }
     }
   }, [activeScreen]);
@@ -452,7 +466,15 @@ function App() {
 
   // Handle Restricted Actions and log to backend
   useEffect(() => {
+    if (activeScreen !== "exam") return;
+
+    // Grace period: wait 3s after exam starts before activating listeners
+    // This prevents false violations from the screen-share picker stealing focus
+    let ready = false;
+    const graceTimer = setTimeout(() => { ready = true; }, 3000);
+
     const triggerViolation = (reason) => {
+      if (!ready) return;
       if (activeScreen !== "exam") return;
 
       if (ufmLocked && window.electronAPI?.focusWindow) {
@@ -489,6 +511,7 @@ function App() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      clearTimeout(graceTimer);
       window.removeEventListener("blur", handleBlur);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -583,23 +606,34 @@ function App() {
     };
   }, [activeScreen]);
 
-  // Submit Exam Handler (Communicates with Backend API)
+  // Keep refs in sync with state so timer/auto-submit always reads latest values
+  useEffect(() => { selectedAnswersRef.current = selectedAnswers; }, [selectedAnswers]);
+  useEffect(() => { candidateNameRef.current = candidateName; }, [candidateName]);
+
+  // Submit Exam Handler — reads from refs so it's safe to call from timer callbacks
   const handleSubmitExam = async () => {
     if (hasSubmittedExamRef.current) return;
     hasSubmittedExamRef.current = true;
 
+    // Stop timer immediately
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     try {
       let submission = null;
+      const name = candidateNameRef.current;
+      const answers = selectedAnswersRef.current;
+
       if (window.electronAPI?.submitExam) {
-        const res = await window.electronAPI.submitExam(candidateName, selectedAnswers);
-        if (res && res.success) {
-          submission = res.submission;
-        }
+        const res = await window.electronAPI.submitExam(name, answers);
+        if (res && res.success) submission = res.submission;
       } else {
         const res = await fetch("http://localhost:5000/api/exam/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ candidateName, selectedAnswers }),
+          body: JSON.stringify({ candidateName: name, selectedAnswers: answers }),
         });
         const data = await res.json();
         if (data && data.success) submission = data.submission;
@@ -620,19 +654,21 @@ function App() {
     }
   };
 
-  // Exam Countdown Timer with Auto-Submit trigger when timer reaches zero
+  // Exam Countdown Timer — single interval, started once when exam begins
   useEffect(() => {
-    if (activeScreen !== "exam") return;
-
-    if (timeLeft <= 0) {
-      handleSubmitExam();
+    if (activeScreen !== "exam") {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
       return;
     }
 
-    const interval = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
+          clearInterval(timerRef.current);
+          timerRef.current = null;
           handleSubmitExam();
           return 0;
         }
@@ -640,8 +676,13 @@ function App() {
       });
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [activeScreen, timeLeft]);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [activeScreen]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -971,23 +1012,63 @@ function App() {
   if (activeScreen === "results") {
     const scoreVal = submissionResult?.score ?? 0;
     const totalMarksVal = submissionResult?.totalMarks ?? (questions.length * 2);
+    const pct = submissionResult?.percentage ?? (totalMarksVal > 0 ? ((scoreVal / totalMarksVal) * 100).toFixed(1) : 0);
+    const breakdown = submissionResult?.breakdown ?? [];
+    const correctCount = breakdown.filter((b) => b.isCorrect).length;
+    const submittedAt = submissionResult?.submittedAt ? new Date(submissionResult.submittedAt).toLocaleTimeString() : "";
 
     return (
       <div className="min-h-screen bg-[#f0f4ff] text-[#111827] flex flex-col items-center justify-center p-6 select-none font-sans">
-        <div className="w-full max-w-md bg-white border border-blue-200 rounded-2xl p-8 shadow-xl text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-3xl text-[#1d4ed8]">
-            ✓
-          </div>
-          <div className="space-y-1">
+        <div className="w-full max-w-lg bg-white border border-blue-200 rounded-2xl p-8 shadow-xl space-y-6">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 mx-auto rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-3xl text-[#1d4ed8]">
+              ✓
+            </div>
             <h1 className="text-2xl font-bold text-[#111827]">Exam Completed</h1>
-            <p className="text-sm text-gray-500">Your responses have been submitted</p>
+            <p className="text-sm text-gray-500">Your responses have been submitted{submittedAt ? ` at ${submittedAt}` : ""}</p>
           </div>
-          <div className="p-6 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Score</p>
-            <p className="text-4xl font-extrabold text-[#1d4ed8] font-mono">
-              {scoreVal}/{totalMarksVal}
-            </p>
+
+          {/* Score block */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Score</p>
+              <p className="text-2xl font-extrabold text-[#1d4ed8] font-mono">{scoreVal}/{totalMarksVal}</p>
+            </div>
+            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Percentage</p>
+              <p className="text-2xl font-extrabold text-[#1d4ed8] font-mono">{pct}%</p>
+            </div>
+            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Correct</p>
+              <p className="text-2xl font-extrabold text-emerald-600 font-mono">{correctCount}/{questions.length}</p>
+            </div>
           </div>
+
+          {/* Per-question breakdown */}
+          {breakdown.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Question Breakdown</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {breakdown.map((b, i) => (
+                  <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs ${
+                    b.isCorrect ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"
+                  }`}>
+                    <span className="font-medium">Q{i + 1}</span>
+                    <span>{b.isCorrect ? "✓ Correct" : "✗ Incorrect"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Exit button */}
+          <button
+            onClick={() => { if (window.electronAPI?.closeApp) window.electronAPI.closeApp(); }}
+            className="w-full py-3 px-6 rounded-xl bg-[#1d4ed8] hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 transition cursor-pointer"
+          >
+            Close Application
+          </button>
         </div>
       </div>
     );

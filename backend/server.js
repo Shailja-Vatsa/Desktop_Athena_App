@@ -8,9 +8,30 @@ const { initDB } = require("./db");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS and JSON parsing
-app.use(cors());
+// Restrict CORS to local Electron renderer origins only
+const ALLOWED_ORIGINS = ["http://localhost:5174", "http://localhost:5000"];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS: origin not allowed"));
+    }
+  },
+  methods: ["GET", "POST", "DELETE"]
+}));
 app.use(express.json({ limit: "50mb" }));
+
+// CSRF guard middleware — applied explicitly to every state-changing route
+const csrfGuard = (req, res, next) => {
+  const origin = req.headers.origin || "";
+  const referer = req.headers.referer || "";
+  const isLocal = !origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o) || referer.startsWith(o));
+  if (!isLocal) {
+    return res.status(403).json({ success: false, error: "Forbidden: invalid request origin" });
+  }
+  next();
+};
 
 // Initialize DB on server start
 initDB();
@@ -36,7 +57,7 @@ app.get("/api/questions", (req, res) => {
 });
 
 // 3. Exam Submission Endpoint
-app.post("/api/exam/submit", (req, res) => {
+app.post("/api/exam/submit", csrfGuard, (req, res) => {
   try {
     const { candidateName, selectedAnswers } = req.body;
     const submission = examService.submitExam(candidateName, selectedAnswers);
@@ -57,7 +78,7 @@ app.get("/api/exam/submissions", (req, res) => {
 });
 
 // 5. Log Violation Endpoint
-app.post("/api/proctor/violation", (req, res) => {
+app.post("/api/proctor/violation", csrfGuard, (req, res) => {
   try {
     const { reason, count, metadata } = req.body;
     const violation = proctorService.logViolation(reason, count, metadata);
@@ -68,7 +89,7 @@ app.post("/api/proctor/violation", (req, res) => {
 });
 
 // 6. Log Snapshot Metadata Endpoint
-app.post("/api/proctor/snapshot", (req, res) => {
+app.post("/api/proctor/snapshot", csrfGuard, (req, res) => {
   try {
     const { fileName, filePath } = req.body;
     const snapshot = proctorService.logSnapshot(fileName, filePath);
@@ -103,13 +124,13 @@ app.get("/api/tasks", (req, res) => {
   res.json({ success: true, tasks: taskService.getTasks() });
 });
 
-app.post("/api/tasks", (req, res) => {
+app.post("/api/tasks", csrfGuard, (req, res) => {
   const { task } = req.body;
   const tasks = taskService.addTask(task);
   res.json({ success: true, tasks });
 });
 
-app.delete("/api/tasks/:index", (req, res) => {
+app.delete("/api/tasks/:index", csrfGuard, (req, res) => {
   const index = parseInt(req.params.index, 10);
   const tasks = taskService.deleteTask(index);
   res.json({ success: true, tasks });

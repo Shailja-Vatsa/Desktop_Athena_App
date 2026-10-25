@@ -1,5 +1,5 @@
 {
-  "name": "desktop-athena",
+  "name": "@desktop-athena/app",
   "version": "1.0.0",
   "description": "Desktop Athena with Express & Electron Backend",
   "main": "main.js",
@@ -7,7 +7,7 @@
     "dev": "npm run dev --prefix renderer",
     "backend": "node backend/server.js",
     "build": "npm run build --prefix renderer",
-    "start": "concurrently \"npm run dev --prefix renderer\" \"electron .\"",
+    "start": "concurrently \"npm run dev --prefix renderer\" \"npx --no-install electron .\"",
     "dist": "npm run build --prefix renderer && NODE_ENV=production electron-builder"
   },
   "keywords": [],
@@ -15,7 +15,7 @@
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^10.0.5",
-    "electron": "^33.0.0",
+    "electron": "^45.0.0",
     "electron-builder": "^26.18.0"
   },
   "dependencies": {
@@ -35,7 +35,11 @@
       {
         "from": "backend",
         "to": "backend",
-        "filter": ["**/*", "!data.json", "!quit_strikes.json"]
+        "filter": [
+          "**/*",
+          "!data.json",
+          "!quit_strikes.json"
+        ]
       }
     ],
     "mac": {

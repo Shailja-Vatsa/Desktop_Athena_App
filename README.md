@@ -239,7 +239,19 @@ npm start
 - **Question Bank Customization**: Edit `backend/data.json` to modify, add, or categorize exam questions.
 
 ---
+### Remaining Known Limitations
 
+The following limitations are acknowledged in the current implementation and are outside the scope of the present release.
+
+| Limitation | Details and Impact |
+|---|---|
+| **No audio recording to disk** | Audio is visualized in real time but is not saved as an audio file. This is intentional under the current architecture. |
+| **No continuous screen recording** | Screen capture uses periodic still images at 10-second intervals rather than recording continuous video. This is intentional under the current architecture. |
+| **Non-atomic database writes** | `db.js` uses `writeFileSync` to overwrite `data.json` directly. A crash or interruption during a write could leave the file corrupted. The risk is considered low for the current use case, but atomic writes would improve reliability. |
+| **Permissive CORS configuration** | The application currently allows cross-origin requests from any origin (`*`). This has been flagged by the security scanner. Its acceptability depends on the local-only deployment assumptions and the absence of external network exposure. |
+| **Electron version security concerns** | Electron v33 has been flagged by the security scanner for a known context-isolation bypass vulnerability. An upgrade to a patched, supported Electron release is recommended. Electron v39 or later was identified as the relevant remediation baseline for the reported issue; the exact vulnerability and applicable patched version should be verified before upgrading. |
+
+**Scope note:** These limitations are documented for transparency. The absence of a fix in the current release does not imply that every item is inherently unfixable. Some, particularly non-atomic writes and permissive CORS, can potentially be addressed without major architectural changes.
 ## 📄 License
 
 This project is licensed under the [ISC License](LICENSE).

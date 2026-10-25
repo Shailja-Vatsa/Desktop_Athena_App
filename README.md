@@ -82,7 +82,7 @@ graph TD
 
 | Layer | Technologies | Role |
 |---|---|---|
-| **Desktop Runtime** | Electron 33 | Native window lifecycle, kiosk enforcement, global shortcuts, desktopCapturer |
+| **Desktop Runtime** | Electron 45 | Native window lifecycle, kiosk enforcement, global shortcuts, desktopCapturer |
 | **Frontend Framework** | React 19, Vite 8, Tailwind CSS v4 | High-performance user interface, responsive state machines, audio/video canvas pipelines |
 | **API Backend** | Node.js, Express 5, CORS | Embedded REST API running on port 5000 with auto-port fallback |
 | **Bridge** | Electron `contextBridge` + `ipcMain` | Secure, context-isolated IPC channels exposing `window.electronAPI` |
@@ -131,8 +131,8 @@ electron-starter-kit/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/JACOBIAN01/electron-starter-kit.git
-   cd electron-starter-kit
+   git clone https://github.com/Shailja-Vatsa/Desktop_Athena_App.git
+   cd Desktop_Athena_App
    ```
 
 2. **Install root dependencies (Electron, Concurrently, Express, CORS):**
@@ -178,6 +178,12 @@ npm start
   # Outputs compiled bundle to renderer/dist/
   ```
 
+- **Package as a macOS DMG:**
+  ```bash
+  npm run dist
+  # Outputs to dist/Desktop Athena-1.0.0-arm64.dmg
+  ```
+
 ---
 
 ## 🔌 API & IPC Reference
@@ -220,7 +226,7 @@ npm start
    - The candidate grants Camera and Microphone permissions and tests hardware.
    - The candidate enters Fullscreen mode, locking the display and disabling standard desktop exit keys.
 2. **Step 2: Candidate Identification & Rules Acceptance**
-   - The "Start Examination" button unlocks once all 3 checks pass.
+   - The "Begin Examination" button unlocks once all 3 checks pass.
    - The candidate reviews the academic honesty guidelines and confirms their candidate name.
 3. **Step 3: Proctored Exam Execution**
    - Screen capture begins capturing active desktop frames every 10 seconds.
@@ -228,7 +234,7 @@ npm start
    - Candidate responds to questions and navigates using the question matrix.
 4. **Step 4: Submission & Score Summary**
    - Upon clicking "Submit Exam" (or timer expiration), the backend calculates the final score.
-   - A modal displays total score, percentage, correct answer analysis, and proctoring audit confirmation.
+   - The scoreboard displays total score, percentage, correct answer breakdown, and submission timestamp.
 
 ---
 
@@ -239,19 +245,7 @@ npm start
 - **Question Bank Customization**: Edit `backend/data.json` to modify, add, or categorize exam questions.
 
 ---
-### Remaining Known Limitations
 
-The following limitations are acknowledged in the current implementation and are outside the scope of the present release.
-
-| Limitation | Details and Impact |
-|---|---|
-| **No audio recording to disk** | Audio is visualized in real time but is not saved as an audio file. This is intentional under the current architecture. |
-| **No continuous screen recording** | Screen capture uses periodic still images at 10-second intervals rather than recording continuous video. This is intentional under the current architecture. |
-| **Non-atomic database writes** | `db.js` uses `writeFileSync` to overwrite `data.json` directly. A crash or interruption during a write could leave the file corrupted. The risk is considered low for the current use case, but atomic writes would improve reliability. |
-| **Permissive CORS configuration** | The application currently allows cross-origin requests from any origin (`*`). This has been flagged by the security scanner. Its acceptability depends on the local-only deployment assumptions and the absence of external network exposure. |
-| **Electron version security concerns** | Electron v33 has been flagged by the security scanner for a known context-isolation bypass vulnerability. An upgrade to a patched, supported Electron release is recommended. Electron v39 or later was identified as the relevant remediation baseline for the reported issue; the exact vulnerability and applicable patched version should be verified before upgrading. |
-
-**Scope note:** These limitations are documented for transparency. The absence of a fix in the current release does not imply that every item is inherently unfixable. Some, particularly non-atomic writes and permissive CORS, can potentially be addressed without major architectural changes.
 ## 📄 License
 
 This project is licensed under the [ISC License](LICENSE).
